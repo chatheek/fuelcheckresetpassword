@@ -6,14 +6,17 @@
     <title>Fuel-Check | Reset Password</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { font-family: sans-serif; background-color: #FFF4CE; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .card { background: white; padding: 2rem; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
-        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background-color: #FFB800; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; }
-        #message { margin-top: 1rem; padding: 10px; border-radius: 5px; display: none; font-size: 14px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #FFF4CE; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: white; padding: 2.5rem; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 90%; max-width: 400px; text-align: center; }
+        h2 { margin-bottom: 10px; color: #333; }
+        p { color: #666; font-size: 14px; margin-bottom: 20px; }
+        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 10px; box-sizing: border-box; font-size: 16px; }
+        button { width: 100%; padding: 14px; background-color: #FFB800; border: none; border-radius: 10px; color: #000; font-weight: bold; font-size: 16px; cursor: pointer; margin-top: 15px; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        #status-message { margin-top: 20px; font-size: 14px; padding: 10px; border-radius: 8px; display: none; }
         .error { background-color: #f8d7da; color: #721c24; }
         .success { background-color: #d4edda; color: #155724; }
-        #loading { color: #666; font-style: italic; }
+        #loading { color: #888; font-style: italic; }
     </style>
 </head>
 <body>
@@ -21,67 +24,78 @@
 <div class="card">
     <div id="loading">Verifying security token...</div>
     
-    <div id="reset-form" style="display: none;">
-        <h2>Update Password</h2>
-        <p style="font-size: 13px; color: #666;">Enter a new password for your account.</p>
-        <input type="password" id="new-password" placeholder="New Password">
-        <input type="password" id="confirm-password" placeholder="Confirm Password">
-        <button id="submit-btn" onclick="handleUpdate()">Save Password</button>
+    <div id="auth-form" style="display: none;">
+        <h2>New Password</h2>
+        <p>Your identity is verified. Enter a new password for chatheek04@gmail.com</p>
+        <input type="password" id="pass1" placeholder="New Password">
+        <input type="password" id="pass2" placeholder="Confirm Password">
+        <button id="update-btn" onclick="updatePassword()">Update Password</button>
     </div>
 
-    <div id="message"></div>
+    <div id="status-message"></div>
 </div>
 
 <script>
-    const SUPABASE_URL = 'https://vdonioovmmuvfpbcbzer.supabase.co';
-    const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
-    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const CONF = {
+        url: 'https://vdonioovmmuvfpbcbzer.supabase.co',
+        key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZkb25pb292bW11dmZwYmNiemVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxMDg3NTYsImV4cCI6MjA4ODY4NDc1Nn0.UP3kTbPR1D3Y7mPUw6hwDC8BOEf5KByIuY61dCIgEPw'
+    };
 
-    // This is the "Gatekeeper"
-    supabaseClient.auth.onAuthStateChange((event, session) => {
-        if (event === 'SIGNED_IN' || session) {
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('reset-form').style.display = 'block';
-        } else {
-            // Give it 2 seconds to recover session before showing error
-            setTimeout(() => {
-                if (!document.getElementById('reset-form').offsetParent) {
-                    document.getElementById('loading').innerHTML = "❌ Session Expired or Link Invalid.";
-                    showMessage("Please request a new link from the mobile app.", "error");
-                }
-            }, 2000);
+    // Initialize client with specific settings to avoid the auto-401
+    const supabaseClient = supabase.createClient(CONF.url, CONF.key, {
+        auth: {
+            persistSession: false,
+            autoRefreshToken: false,
+            detectSessionInUrl: true
         }
     });
 
-    async function handleUpdate() {
-        const pass = document.getElementById('new-password').value;
-        const conf = document.getElementById('confirm-password').value;
-        const btn = document.getElementById('submit-btn');
+    // Handle the session recovery on load
+    window.addEventListener('DOMContentLoaded', async () => {
+        // Give the library 500ms to parse the #access_token from the URL
+        setTimeout(async () => {
+            const { data, error } = await supabaseClient.auth.getSession();
+            
+            if (data.session) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('auth-form').style.display = 'block';
+            } else {
+                document.getElementById('loading').innerHTML = "❌ Session Expired or Invalid Link.";
+                showStatus("Please request a new reset link from the Fuel-Check app.", "error");
+            }
+        }, 500);
+    });
 
-        if (pass !== conf) return showMessage("Passwords do not match!", "error");
-        if (pass.length < 6) return showMessage("Password must be 6+ chars.", "error");
+    async function updatePassword() {
+        const p1 = document.getElementById('pass1').value;
+        const p2 = document.getElementById('pass2').value;
+        const btn = document.getElementById('update-btn');
+
+        if (p1 !== p2) return showStatus("Passwords do not match!", "error");
+        if (p1.length < 6) return showStatus("Password must be at least 6 characters.", "error");
 
         btn.disabled = true;
-        btn.innerText = "Updating...";
+        btn.innerText = "Saving...";
 
-        const { error } = await supabaseClient.auth.updateUser({ password: pass });
+        const { error } = await supabaseClient.auth.updateUser({ password: p1 });
 
         if (error) {
-            showMessage(error.message, "error");
+            showStatus(error.message, "error");
             btn.disabled = false;
-            btn.innerText = "Save Password";
+            btn.innerText = "Update Password";
         } else {
-            showMessage("✅ Success! You can now log in to the Fuel-Check app.", "success");
-            document.getElementById('reset-form').style.display = 'none';
+            showStatus("✅ Success! Password updated. You can now log in to the mobile app.", "success");
+            document.getElementById('auth-form').style.display = 'none';
         }
     }
 
-    function showMessage(text, type) {
-        const msg = document.getElementById('message');
-        msg.innerText = text;
-        msg.className = type;
-        msg.style.display = "block";
+    function showStatus(text, type) {
+        const el = document.getElementById('status-message');
+        el.innerText = text;
+        el.className = type;
+        el.style.display = "block";
     }
 </script>
+
 </body>
 </html>
