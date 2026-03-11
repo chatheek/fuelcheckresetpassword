@@ -3,80 +3,111 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fuel-Check | Reset Password</title>
+    <title>Fuel-Check | Secure Reset</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
     <style>
-        body { font-family: sans-serif; background-color: #FFF4CE; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .card { background: white; padding: 2rem; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
-        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background-color: #FFB800; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
-        #message { margin-top: 1rem; font-size: 0.85rem; padding: 10px; border-radius: 5px; display: none; }
-        .success { background-color: #d4edda; color: #155724; }
-        .error { background-color: #f8d7da; color: #721c24; }
+        :root { --primary: #FFB800; --bg: #FFF4CE; }
+        body { font-family: -apple-system, sans-serif; background-color: var(--bg); display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: white; padding: 2.5rem; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); width: 90%; max-width: 400px; text-align: center; }
+        h2 { margin: 0 0 10px; color: #333; }
+        p { color: #666; font-size: 14px; margin-bottom: 25px; line-height: 1.5; }
+        input { width: 100%; padding: 14px; margin: 8px 0; border: 1px solid #ddd; border-radius: 10px; box-sizing: border-box; font-size: 16px; outline: none; }
+        input:focus { border-color: var(--primary); }
+        button { width: 100%; padding: 14px; background-color: var(--primary); border: none; border-radius: 10px; color: #000; font-weight: bold; font-size: 16px; cursor: pointer; margin-top: 15px; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; opacity: 0.7; }
+        #message { margin-top: 1.5rem; font-size: 14px; padding: 12px; border-radius: 8px; display: none; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        #loading-overlay { margin-bottom: 20px; }
     </style>
-
-    <script>
-        // Use a "Global Check" to prevent the "Already Declared" error
-        let supabaseClient;
-        
-        window.onload = () => {
-            const SUPABASE_URL = 'https://vdonioovmmuvfpbcbzer.supabase.co';
-            const SUPABASE_ANON_KEY = 'YOUR_KEY_HERE';
-            
-            // Initialize only once
-            if (!supabaseClient) {
-                supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-            }
-        };
-
-        async function handleReset() {
-            const password = document.getElementById('new-password').value;
-            const confirm = document.getElementById('confirm-password').value;
-            const btn = document.getElementById('reset-btn');
-            const msgDiv = document.getElementById('message');
-
-            if (password !== confirm) return showMessage("Passwords do not match!", "error");
-            if (password.length < 6) return showMessage("Password too short!", "error");
-
-            btn.disabled = true;
-            btn.innerText = "Updating...";
-
-            try {
-                // updateUser works automatically because the token is in the URL hash (#)
-                const { error } = await supabaseClient.auth.updateUser({ password: password });
-                if (error) throw error;
-
-                showMessage("Success! You can now log in to the app.", "success");
-                btn.style.display = "none";
-            } catch (err) {
-                showMessage(err.message, "error");
-                btn.disabled = false;
-                btn.innerText = "Update Password";
-            }
-        }
-
-        function showMessage(text, type) {
-            const msgDiv = document.getElementById('message');
-            msgDiv.innerText = text;
-            msgDiv.className = type;
-            msgDiv.style.display = "block";
-        }
-    </script>
 </head>
 <body>
 
 <div class="card">
-    <h2>Update Password</h2>
-    <p>Enter your new password for Fuel-Check</p>
+    <div id="loading-overlay">Checking security session...</div>
     
-    <input type="password" id="new-password" placeholder="New Password">
-    <input type="password" id="confirm-password" placeholder="Confirm Password">
-    
-    <button id="reset-btn" onclick="handleReset()">Update Password</button>
-    
+    <div id="form-content" style="display: none;">
+        <h2>New Password</h2>
+        <p>Your identity has been verified. Enter a new password for your Fuel-Check account.</p>
+        
+        <input type="password" id="new-password" placeholder="New Password (min 6 chars)">
+        <input type="password" id="confirm-password" placeholder="Confirm Password">
+        
+        <button id="reset-btn" onclick="handleReset()">Update Password</button>
+    </div>
+
     <div id="message"></div>
 </div>
+
+<script>
+    // Configuration - Replace with your actual keys
+    const SUPABASE_URL = 'https://vdonioovmmuvfpbcbzer.supabase.co';
+    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+
+    // Global variable for the client
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // This handles the "401 Prevention" logic
+    window.onload = () => {
+        // Listen for the session to be "recovered" from the URL
+        supabaseClient.auth.onAuthStateChange((event, session) => {
+            const overlay = document.getElementById('loading-overlay');
+            const form = document.getElementById('form-content');
+
+            if (event === 'SIGNED_IN' || session) {
+                console.log("Auth Event:", event);
+                overlay.style.display = 'none';
+                form.style.display = 'block';
+            } else {
+                // If after 3 seconds there is no session, it's likely a bad link
+                setTimeout(() => {
+                    if (!session) {
+                        overlay.innerHTML = "❌ Invalid or expired link.";
+                        showMessage("Please request a new reset link from the mobile app.", "error");
+                    }
+                }, 3000);
+            }
+        });
+    };
+
+    async function handleReset() {
+        const password = document.getElementById('new-password').value;
+        const confirm = document.getElementById('confirm-password').value;
+        const btn = document.getElementById('reset-btn');
+
+        if (password !== confirm) return showMessage("Passwords do not match!", "error");
+        if (password.length < 6) return showMessage("Password must be at least 6 characters.", "error");
+
+        btn.disabled = true;
+        btn.innerText = "Saving...";
+
+        try {
+            // Because we verified the session on window.onload, 
+            // this call will now include the correct Authorization header.
+            const { error } = await supabaseClient.auth.updateUser({ password: password });
+
+            if (error) throw error;
+
+            showMessage("✅ Password updated successfully! You can now return to the app and login.", "success");
+            btn.style.display = "none";
+            document.querySelectorAll('input').forEach(i => i.style.display = 'none');
+            document.querySelector('p').style.display = 'none';
+
+        } catch (err) {
+            showMessage(err.message, "error");
+            btn.disabled = false;
+            btn.innerText = "Update Password";
+        }
+    }
+
+    function showMessage(text, type) {
+        const msgDiv = document.getElementById('message');
+        msgDiv.innerText = text;
+        msgDiv.className = type;
+        msgDiv.style.display = "block";
+    }
+</script>
 
 </body>
 </html>
